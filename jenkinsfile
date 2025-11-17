@@ -1,14 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        AWS_REGION        = credentials('aws-region')
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-        SSH_KEY_NAME      = credentials('ssh-key-name')
-        SOURCE_AMI        = credentials('source-ami')
-    }
-
     stages {
 
         stage('Checkout') {
@@ -31,29 +23,33 @@ pipeline {
 
         stage('Packer Init') {
             steps {
-                sh '''
-                packer init .
-                '''
+                sh "packer init ."
             }
         }
 
         stage('Validate Template') {
             steps {
-                sh '''
-                packer validate .
-                '''
+                sh "packer validate ."
             }
         }
 
         stage('Build AMI') {
             steps {
-                sh '''
-                packer build \
-                  -var "aws_region=${AWS_REGION}" \
-                  -var "ssh_key_name=${SSH_KEY_NAME}" \
-                  -var "source_ami=${SOURCE_AMI}" \
-                  ami.pkr.hcl
-                '''
+                withCredentials([
+                    string(credentialsId: 'aws-region',            variable: 'AWS_REGION'),
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'ssh-key-name',          variable: 'SSH_KEY_NAME'),
+                    string(credentialsId: 'source-ami',            variable: 'SOURCE_AMI')
+                ]) {
+                    sh '''
+                    packer build \
+                      -var "aws_region=${AWS_REGION}" \
+                      -var "ssh_key_name=${SSH_KEY_NAME}" \
+                      -var "source_ami=${SOURCE_AMI}" \
+                      ami.pkr.hcl
+                    '''
+                }
             }
         }
     }
