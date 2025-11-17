@@ -1,0 +1,69 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION        = credentials('aws-region')
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+        SSH_KEY_NAME      = credentials('ssh-key-name')
+        SOURCE_AMI        = credentials('source-ami')
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Packer') {
+            steps {
+                sh '''
+                PACKER_VERSION=1.10.7
+                curl -Lo packer.zip https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_linux_amd64.zip
+                unzip packer.zip
+                sudo mv packer /usr/local/bin/
+                packer version
+                '''
+            }
+        }
+
+        stage('Packer Init') {
+            steps {
+                sh '''
+                packer init .
+                '''
+            }
+        }
+
+        stage('Validate Template') {
+            steps {
+                sh '''
+                packer validate .
+                '''
+            }
+        }
+
+        stage('Build AMI') {
+            steps {
+                sh '''
+                packer build \
+                  -var "aws_region=${AWS_REGION}" \
+                  -var "ssh_key_name=${SSH_KEY_NAME}" \
+                  -var "source_ami=${SOURCE_AMI}" \
+                  ami.pkr.hcl
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Packer AMI build completed."
+        }
+        failure {
+            echo "Build failed. Check logs."
+        }
+    }
+}
